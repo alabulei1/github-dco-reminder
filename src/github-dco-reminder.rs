@@ -2,9 +2,9 @@ use github_flows::{
     get_octo, listen_to_event, octocrab::models::pulls::PullRequestAction,
     octocrab::models::repos::Commit, EventPayload,
 };
+use serde_json::Value;
 use slack_flows::send_message_to_channel;
 use tokio::*;
-
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
 pub async fn run() -> anyhow::Result<()> {
@@ -45,6 +45,44 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
                         .create_comment(commit_sha, body)
                         .send()
                         .await;
+                }
+            }
+        }
+
+        EventPayload::UnknownEvent(e) => {
+            let payload = e.to_string();
+            let val: Value = serde_json::from_str(&payload).unwrap();
+
+            match val["commits"].as_array() {
+                None => (),
+
+                Some(commits) => {
+                    for commit in commits {
+                        let mut user = "";
+                        let mut commit_sha = "";
+                        let mut commit_message = "";
+                        user = commit["author"]["name"].as_str().unwrap();
+                        commit_sha = commit["sha"].as_str().unwrap();
+                        commit_message = commit["message"].as_str().unwrap();
+                        let text = format!("sha: {commit_sha}, message: {commit_message}");
+                        send_message_to_channel("ik8", "general", text);
+                        let is_signed_off_by = commit_message.contains("Signed-off-by:");
+
+                        if !is_signed_off_by {
+                            let body = format!("@{user} please DCO sign your commit");
+
+                            send_message_to_channel(
+                                "ik8",
+                                "general",
+                                "from unknowevent".to_string(),
+                            );
+                            let _ = octo
+                                .commits(owner, repo)
+                                .create_comment(commit_sha, body)
+                                .send()
+                                .await;
+                        }
+                    }
                 }
             }
         }
