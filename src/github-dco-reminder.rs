@@ -38,9 +38,13 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         let mut full_name = "".to_string();
 
         match pull.repo {
-            None => {return;},
+            None => {
+                return;
+            }
 
-            Some(repo) => {full_name = repo.full_name.unwrap_or("no repo name found".to_string());},
+            Some(repo) => {
+                full_name = repo.full_name.unwrap_or("no repo name found".to_string());
+            }
         };
 
         let pull_number = pull.number;
@@ -49,6 +53,8 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
             format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
         // "https://api.github.com/repos/jaykchen/vitesse-lite/pulls/22/commits"
         // let uri = Uri::try_from(commits_url.as_str()).unwrap();
+
+        send_message_to_channel("ik8", "general", commits_url.clone());
         let json = octocrab
             ._get(commits_url, None::<&()>)
             .await
@@ -60,7 +66,9 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
 
         'outer: {
             match json {
-                Err(_) => (),
+                Err(_) => {
+                    send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
+                }
                 Ok(repo_commits) => {
                     for repo_commit in repo_commits {
                         let msg = repo_commit.commit.message;
@@ -86,6 +94,8 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
 
         let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
         let body = format!("@{creator}, {msg}");
+        send_message_to_channel("ik8", "general", body.clone());
+
         let _ = octocrab
             .issues(owner, repo)
             .create_comment(pull_number, body)
