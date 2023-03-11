@@ -3,8 +3,8 @@ use http_req::uri::Uri;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::Value;
+use slack_flows::send_message_to_channel;
 use tokio::*;
-
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
 pub async fn run() -> anyhow::Result<()> {
@@ -52,6 +52,7 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
 
                 Ok(body) => {
                     // let text = String::from_utf8_lossy(body.as_bytes());
+                    send_message_to_channel("ik8", "general", body.clone());
                     json = serde_json::from_slice(body.as_bytes())
                         .map_err(|_e| {})
                         .unwrap();
@@ -63,6 +64,7 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
             .iter()
             .filter_map(|j| j["commit"]["message"].as_str())
             .collect();
+        send_message_to_channel("ik8", "general", commits.clone().join(";"));
 
         let is_dco_ok = commits
             .iter()
