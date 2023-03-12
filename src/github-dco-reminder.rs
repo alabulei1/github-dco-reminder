@@ -2,10 +2,8 @@ use anyhow::Error;
 use github_flows::{
     get_octo, listen_to_event,
     octocrab::models::repos::{Commit, RepoCommit},
-    octocrab::{FromResponse, Octocrab},
     EventPayload,
 };
-use http_req::uri::Uri;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::Value;
@@ -32,103 +30,96 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     }
 
     let octocrab = get_octo(Some(String::from(owner)));
+    let mut full_name = "".to_string();
+    let mut pull_number = 0u64;
+    let mut creator = "".to_string();
+    match payload {
+        EventPayload::PullRequestEvent(e) => {
+            let pull = e.pull_request;
 
-    if let EventPayload::PullRequestEvent(e) = payload {
-        let pull = e.pull_request;
-        let mut full_name = "".to_string();
-
-        match pull.repo {
-            None => {
-                return;
-            }
-
-            Some(repo) => {
+            if let Some(repo) = pull.repo {
                 full_name = repo.full_name.unwrap_or("no repo name found".to_string());
             }
-        };
+            pull_number = pull.number;
+            creator = pull.user.unwrap().login;
 
-        let pull_number = pull.number;
+        }
 
-        let commits_url =
-            format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
-        // "https://api.github.com/repos/jaykchen/vitesse-lite/pulls/22/commits"
-        // let uri = Uri::try_from(commits_url.as_str()).unwrap();
+        EventPayload::PullRequestReviewEvent(e) => {
+            let pull = e.pull_request;
 
-        send_message_to_channel("ik8", "general", commits_url.clone());
-        let json = octocrab
-            ._get(commits_url, None::<&()>)
-            .await
-            .unwrap()
-            .json::<Vec<RepoCommit>>()
-            .await;
+            if let Some(repo) = pull.repo {
+                full_name = repo.full_name.unwrap_or("no full_name found".to_string());
+            }
+            pull_number = pull.number;
+            creator = pull.user.unwrap().login;
+        }
+        EventPayload::PullRequestReviewCommentEvent(e) => {
+            let pull = e.pull_request;
 
-        let mut is_dco_ok = false;
+            if let Some(repo) = pull.repo {
+                full_name = repo.full_name.unwrap_or("no full_name found".to_string());
+            }
+            pull_number = pull.number;
+            creator = pull.user.unwrap().login;
+        }
+        EventPayload::UnknownEvent(e) => {
+            let text = e.to_string();
 
-        'outer: {
-            match json {
-                Err(_) => {
-                    send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
-                }
-                Ok(repo_commits) => {
-                    for repo_commit in repo_commits {
-                        let msg = repo_commit.commit.message;
-                        if !RE.is_match(&msg) {
-                            break 'outer;
-                        }
+            let val: serde_json::Value = serde_json::from_str(&text).unwrap();
+            full_name = val["pull_request"]["repo"]["full_name"]
+                .as_str()
+                .unwrap_or("no full_name found")
+                .to_string();
+
+            pull_number = val["pull_request"]["number"].as_u64().unwrap_or(0);
+            creator = val["pull_request"]["repo"]["user"]["login"]
+                .as_str()
+                .unwrap_or("no creator found")
+                .to_string();
+        }
+
+        _ => (),
+    };
+    let commits_url =
+        format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
+    // "https://api.github.com/repos/jaykchen/vitesse-lite/pulls/22/commits"
+    // let uri = Uri::try_from(commits_url.as_str()).unwrap();
+
+    send_message_to_channel("ik8", "general", commits_url.clone());
+    let json_repo_commits = octocrab
+        ._get(commits_url, None::<&()>)
+        .await
+        .expect("octocrab failed to get data")
+        .json::<Vec<RepoCommit>>()
+        .await;
+  
+    let mut is_dco_ok = false;
+
+    'outer: {
+        match json_repo_commits {
+            Err(_) => {
+                send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
+            }
+            Ok(repo_commits) => {
+                for repo_commit in repo_commits {
+                    let msg = repo_commit.commit.message;
+                    if !RE.is_match(&msg) {
+                        break 'outer;
                     }
-                    is_dco_ok = true;
                 }
-            };
+                is_dco_ok = true;
+            }
         };
+    };
 
-        // if let Ok(commits) = get_commits(octocrab, commits_url).await {
-        //     let is_dco_ok = commits
-        //         .iter()
-        //         .map(|c| {
-        //             let msg = c.lines().last().unwrap_or_default();
-        //             RE.is_match(msg)
-        //         })
-        //         .all(std::convert::identity);
+    let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
+    let body = format!("@{creator}, {msg}");
+    send_message_to_channel("ik8", "general", body.clone());
 
-        let creator = &pull.user.unwrap().login;
-
-        let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
-        let body = format!("@{creator}, {msg}");
-        send_message_to_channel("ik8", "general", body.clone());
-
-        let _ = octocrab
-            .issues(owner, repo)
-            .create_comment(pull_number, body)
-            .await;
-        // }
-    }
+    let _ = octocrab
+        .issues(owner, repo)
+        .create_comment(pull_number, body)
+        .await;
+    // }
 }
-
-// async fn get_commits(octocrab: &Octocrab, commits_url: String) -> anyhow::Result<Vec<String>> {
-//     let json = octocrab
-//         ._get(&commits_url, None::<&()>)
-//         .await?
-//         .json::<Vec<CommitMessage>>()
-//         .await?;
-//     Ok(json.into_iter().map(|c| c.message).collect())
-// }
-
-// async fn get_commits(octocrab: &Octocrab, commits_url: String) -> anyhow::Result<Vec<String>> {
-//     let response = octocrab._get(&commits_url, None::<&()>).await?;
-//     let body = response.text().await?;
-//     let mut comments = Vec::<String>::new();
-
-//     match serde_json::from_str::<serde_json::Value>(&body) {
-//         Err(_e) => {
-//             return Err(_e.into());
-//         }
-//         Ok(json) => {
-//             for j in json.as_array() {
-//                 if let Some(commit) = j["commit"]["message"].as_str() {
-//                     comments.push(commit);
-//                 }
-//             }
-//             return Ok(comments);
-//         }
-//     }
-// }
