@@ -16,3 +16,4 @@ pr.review.comment.json
 push.payload.json
 src/commits.json
 commits.json
+pr.reopen.json

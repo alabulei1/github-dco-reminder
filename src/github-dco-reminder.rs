@@ -1,14 +1,11 @@
 use anyhow::Error;
-use github_flows::{
-    get_octo, listen_to_event,
-    octocrab::models::repos::{Commit, RepoCommit},
-    EventPayload,
-};
+use github_flows::{get_octo, listen_to_event, octocrab::models::repos::RepoCommit, EventPayload};
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde_json::Value;
+// use serde_json::Value;
 use slack_flows::send_message_to_channel;
 use tokio::*;
+use url::Url;
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
 pub async fn run() -> anyhow::Result<()> {
@@ -30,61 +27,43 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     }
 
     let octocrab = get_octo(Some(String::from(owner)));
-    let mut full_name = "".to_string();
+
+    let mut pull_request_url = "".to_string();
     let mut pull_number = 0u64;
-    let mut creator = "".to_string();
     match payload {
         EventPayload::PullRequestEvent(e) => {
-            let pull = e.pull_request;
-
-            if let Some(repo) = pull.repo {
-                full_name = repo.full_name.unwrap_or("no repo name found".to_string());
-            }
-            pull_number = pull.number;
-            creator = pull.user.unwrap().login;
-
+            pull_request_url = e.pull_request.url;
+            pull_number = e.pull_request.number;
         }
 
         EventPayload::PullRequestReviewEvent(e) => {
-            let pull = e.pull_request;
-
-            if let Some(repo) = pull.repo {
-                full_name = repo.full_name.unwrap_or("no full_name found".to_string());
-            }
-            pull_number = pull.number;
-            creator = pull.user.unwrap().login;
+            pull_request_url = e.pull_request.url;
+            pull_number = e.pull_request.number;
         }
         EventPayload::PullRequestReviewCommentEvent(e) => {
-            let pull = e.pull_request;
-
-            if let Some(repo) = pull.repo {
-                full_name = repo.full_name.unwrap_or("no full_name found".to_string());
-            }
-            pull_number = pull.number;
-            creator = pull.user.unwrap().login;
+            pull_request_url = e.pull_request.url;
+            pull_number = e.pull_request.number;
         }
         EventPayload::UnknownEvent(e) => {
             let text = e.to_string();
 
             let val: serde_json::Value = serde_json::from_str(&text).unwrap();
-            full_name = val["pull_request"]["repo"]["full_name"]
+            pull_request_url = val["pull_request"]["url"]
                 .as_str()
-                .unwrap_or("no full_name found")
+                .unwrap_or("no url found")
                 .to_string();
 
             pull_number = val["pull_request"]["number"].as_u64().unwrap_or(0);
-            creator = val["pull_request"]["repo"]["user"]["login"]
-                .as_str()
-                .unwrap_or("no creator found")
-                .to_string();
         }
 
         _ => (),
     };
-    let commits_url =
-        format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
-    // "https://api.github.com/repos/jaykchen/vitesse-lite/pulls/22/commits"
-    // let uri = Uri::try_from(commits_url.as_str()).unwrap();
+
+    // let url = Url::parse(&pull_request_url).unwrap();
+    // let pull_number = url.path_segments().unwrap().last().unwrap();
+    let commits_url = format!("{}/commits", pull_request_url);
+    // let commits_url =
+    //     format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
 
     send_message_to_channel("ik8", "general", commits_url.clone());
     let json_repo_commits = octocrab
@@ -93,9 +72,9 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         .expect("octocrab failed to get data")
         .json::<Vec<RepoCommit>>()
         .await;
-  
-    let mut is_dco_ok = false;
 
+    let mut is_dco_ok = false;
+    let mut creator = "".to_string();
     'outer: {
         match json_repo_commits {
             Err(_) => {
@@ -103,6 +82,7 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
             }
             Ok(repo_commits) => {
                 for repo_commit in repo_commits {
+                    creator = repo_commit.author.unwrap().login;
                     let msg = repo_commit.commit.message;
                     if !RE.is_match(&msg) {
                         break 'outer;
