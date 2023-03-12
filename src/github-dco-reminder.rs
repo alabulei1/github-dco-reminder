@@ -68,39 +68,42 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     let json_repo_commits = octocrab
         ._get(commits_url, None::<&()>)
         .await
-        .expect("octocrab failed to get data")
-        .json::<Vec<RepoCommit>>()
-        .await;
+        .expect("octocrab failed to get data");
+        // .json::<Vec<RepoCommit>>()
+        // .await;
 
-    let mut is_dco_ok = false;
-    let mut creator = "".to_string();
-    'outer: {
-        match json_repo_commits {
-            Err(_) => {
-                send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
-            }
-            Ok(repo_commits) => {
-               send_message_to_channel("ik8", "general", repo_commits[0].clone().url.to_owned());
+let body = json_repo_commits.text().await.unwrap();
+send_message_to_channel("ik8", "general", body.to_string());
+
+    // let mut is_dco_ok = false;
+    // let mut creator = "".to_string();
+    // 'outer: {
+    //     match json_repo_commits {
+    //         Err(_) => {
+    //             send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
+    //         }
+    //         Ok(repo_commits) => {
+    //            send_message_to_channel("ik8", "general", repo_commits[0].clone().url.to_owned());
      
-                for repo_commit in repo_commits {
-                    creator = repo_commit.author.unwrap().login;
-                    let msg = repo_commit.commit.message;
-                    if !RE.is_match(&msg) {
-                        break 'outer;
-                    }
-                }
-                is_dco_ok = true;
-            }
-        };
-    };
+    //             for repo_commit in repo_commits {
+    //                 creator = repo_commit.author.unwrap().login;
+    //                 let msg = repo_commit.commit.message;
+    //                 if !RE.is_match(&msg) {
+    //                     break 'outer;
+    //                 }
+    //             }
+    //             is_dco_ok = true;
+    //         }
+    //     };
+    // };
 
-    let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
-    let body = format!("@{creator}, {msg}");
-    send_message_to_channel("ik8", "general", body.clone());
+    // let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
+    // let body = format!("@{creator}, {msg}");
+    // send_message_to_channel("ik8", "general", body.clone());
 
-    let _ = octocrab
-        .issues(owner, repo)
-        .create_comment(pull_number, body)
-        .await;
+    // let _ = octocrab
+    //     .issues(owner, repo)
+    //     .create_comment(pull_number, body)
+    //     .await;
     // }
 }
