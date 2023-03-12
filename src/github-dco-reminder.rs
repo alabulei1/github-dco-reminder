@@ -65,7 +65,6 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     // let commits_url =
     //     format!("https://api.github.com/repos/{full_name}/pulls/{pull_number}/commits");
 
-    send_message_to_channel("ik8", "general", commits_url.clone());
     let json_repo_commits = octocrab
         ._get(commits_url, None::<&()>)
         .await
@@ -81,6 +80,8 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
                 send_message_to_channel("ik8", "general", "failed to parse RepoCommit".to_string());
             }
             Ok(repo_commits) => {
+               send_message_to_channel("ik8", "general", repo_commits[0].clone().url.to_owned());
+     
                 for repo_commit in repo_commits {
                     creator = repo_commit.author.unwrap().login;
                     let msg = repo_commit.commit.message;
