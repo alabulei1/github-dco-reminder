@@ -1,7 +1,10 @@
 use anyhow::Error;
+use github_flows::octocrab::{Octocrab, Result as OctoResult};
 use github_flows::{get_octo, listen_to_event, EventPayload};
 use lazy_static::lazy_static;
 use regex::Regex;
+use reqwest::Response;
+// use octocrab_wasi::{FromResponse};
 // use serde_json::Value;
 use slack_flows::send_message_to_channel;
 use tokio::*;
@@ -55,46 +58,15 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         None => return,
     };
 
-    // let commits_url = format!("{}/commits", pull_request_url);
-    // let uri = Uri::try_from(commits_url.as_str()).unwrap();
-
-    //     let full_url = Url::parse("https://example.com/path/to/resource").unwrap();
-    // let base_url = Url::parse("https://api.github.com/").unwrap();
     let path_segments = commits_url.path_segments().unwrap();
     let commits_url_route = path_segments.collect::<Vec<&str>>().join("/");
 
     send_message_to_channel("ik8", "general", commits_url_route.to_string());
 
-    // let response: Result<octocrab_wasi::from_response, github_flows::octocrab::Error> = octocrab.get(commits_url_route, None::<&()>).await;
+    let response: OctoResult<Response> = octocrab._get(commits_url, None::<&()>).await;
 
-    // // .json::<Vec<RepoCommit>>()
-    // // .await;
+let body = response.unwrap().text().await.unwrap();
+    send_message_to_channel("ik8", "general", body.to_string());
 
-    // if let Ok(res) = response {
-    //     send_message_to_channel("ik8", "general", res.to_string());
-    // };
-    // // let body = response.unwrap().text().await.unwrap();
-    // send_message_to_channel("ik8", "general", json_repo_commits.to_string());
-
-    // let commits: Vec<&str> = json
-    //     .iter()
-    //     .filter_map(|j| j["commit"]["message"].as_str())
-    //     .collect();
-
-    // let is_dco_ok = commits
-    //     .iter()
-    //     .map(|c| {
-    //         let msg = c.lines().last().unwrap_or_default();
-    //         RE.is_match(msg)
-    //     })
-    //     .all(std::convert::identity);
-
-    // let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
-    // let body = format!("@{creator}, {msg}");
-    // send_message_to_channel("ik8", "general", body.clone());
-
-    // let _ = octocrab
-    //     .issues(owner, repo)
-    //     .create_comment(pull_number, body)
-    //     .await;
+  
 }
