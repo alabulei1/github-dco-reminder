@@ -11,9 +11,16 @@ pub async fn run() -> anyhow::Result<()> {
     let owner = "jaykchen";
     let repo = "vitesse-lite";
 
-    listen_to_event(owner, repo, vec!["pull_request", "pull_request_comment", "pull_request_comment_review"], |payload| {
-        handler(owner, repo, payload)
-    })
+    listen_to_event(
+        owner,
+        repo,
+        vec![
+            "pull_request",
+            "pull_request_comment",
+            "pull_request_comment_review",
+        ],
+        |payload| handler(owner, repo, payload),
+    )
     .await;
 
     Ok(())
@@ -44,23 +51,30 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     };
 
     let (commits_url, pull_number, creator) = match pull {
-        Some(p) => (p.commits_url.unwrap().to_string(), p.number, p.user.unwrap().login),
+        Some(p) => (p.commits_url.unwrap(), p.number, p.user.unwrap().login),
         None => return,
     };
 
     // let commits_url = format!("{}/commits", pull_request_url);
     // let uri = Uri::try_from(commits_url.as_str()).unwrap();
-    send_message_to_channel("ik8", "general", commits_url.to_string());
 
-    let json_repo_commits = octocrab
-        ._get(commits_url, None::<&()>)
-        .await
-        .expect("octocrab failed to get data");
-    // .json::<Vec<RepoCommit>>()
-    // .await;
+    //     let full_url = Url::parse("https://example.com/path/to/resource").unwrap();
+    // let base_url = Url::parse("https://api.github.com/").unwrap();
+    let path_segments = commits_url.path_segments().unwrap();
+    let commits_url_route = path_segments.collect::<Vec<&str>>().join("/");
 
-    let body = json_repo_commits.text().await.unwrap();
-    send_message_to_channel("ik8", "general", body.to_string());
+    send_message_to_channel("ik8", "general", commits_url_route.to_string());
+
+    // let response: Result<octocrab_wasi::from_response, github_flows::octocrab::Error> = octocrab.get(commits_url_route, None::<&()>).await;
+
+    // // .json::<Vec<RepoCommit>>()
+    // // .await;
+
+    // if let Ok(res) = response {
+    //     send_message_to_channel("ik8", "general", res.to_string());
+    // };
+    // // let body = response.unwrap().text().await.unwrap();
+    // send_message_to_channel("ik8", "general", json_repo_commits.to_string());
 
     // let commits: Vec<&str> = json
     //     .iter()

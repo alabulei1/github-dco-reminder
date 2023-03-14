@@ -18,5 +18,5 @@ flowsnet-platform-sdk = "0.1.2"
 lazy_static = "1.4.0"
 regex = "1.7.1"
 url = { version = "2.2.2", features = ["serde"] }
-http_req_wasi = "0.10.2"
+# http_req_wasi = "0.10.2"
 
