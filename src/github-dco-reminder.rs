@@ -43,13 +43,14 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         _ => (),
     };
 
-    let (pull_request_url, pull_number, creator) = match pull {
-        Some(p) => (p.url, p.number, p.user.unwrap().login),
+    let (commits_url, pull_number, creator) = match pull {
+        Some(p) => (p.commits_url.unwrap().to_string(), p.number, p.user.unwrap().login),
         None => return,
     };
 
-    let commits_url = format!("{}/commits", pull_request_url);
+    // let commits_url = format!("{}/commits", pull_request_url);
     // let uri = Uri::try_from(commits_url.as_str()).unwrap();
+    send_message_to_channel("ik8", "general", commits_url.to_string());
 
     let json_repo_commits = octocrab
         ._get(commits_url, None::<&()>)
