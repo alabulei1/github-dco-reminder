@@ -1,18 +1,16 @@
 use anyhow::Error;
-use github_flows::octocrab::Result as OctoResult;
-use github_flows::{get_octo, listen_to_event, EventPayload};
-use lazy_static::lazy_static;
-use regex::Regex;
-// use reqwest::Response;
 use dotenv::dotenv;
+use github_flows::octocrab::models::repos::RepoCommit;
+use github_flows::{get_octo, listen_to_event, EventPayload};
 use http_req::{
     request::{Method, Request},
     uri::Uri,
 };
-use std::env;
-// use octocrab_wasi::{FromResponse};
-// use serde_json::Value;
+use lazy_static::lazy_static;
+use regex::Regex;
+use serde_json::Value;
 use slack_flows::send_message_to_channel;
+use std::env;
 use tokio::*;
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
@@ -89,30 +87,22 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
     let text = String::from_utf8_lossy(&writer);
     send_message_to_channel("ik8", "general", text.to_string());
 
-    let json: Vec<serde_json::Value> = serde_json::from_str(&text).map_err(|e| {}).unwrap();
+    let repo_commit_array: Vec<RepoCommit> = serde_json::from_str(&text).map_err(|e| {}).unwrap();
 
-    let commits: Vec<&str> = json
+    let is_dco_ok = repo_commit_array
         .iter()
-        .filter_map(|j| j["commit"]["message"].as_str())
-        .collect();
-
-    let is_dco_ok = commits
-        .iter()
-        .map(|c| {
-            let msg = c.lines().last().unwrap_or_default();
+        .map(|j| {
+            let msg = j.commit.message.lines().last().unwrap_or_default();
             RE.is_match(msg)
         })
         .all(std::convert::identity);
 
-
     send_message_to_channel("ik8", "general", creator.to_string());
 
-    // let client = octocrab._client();
-
-    // client.new().get(&commits_url_route).send().await.unwrap();
-
-    // let response: OctoResult<Response> = octocrab._get(commits_url, None::<&()>).await;
-
-    // let body = response.unwrap().text().await.unwrap();
-    // send_message_to_channel("ik8", "general", body.to_string());
+    let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
+    let body = format!("@{creator}, {msg}");
+    let _ = octocrab
+        .issues(owner, repo)
+        .create_comment(pull_number, body)
+        .await;
 }
