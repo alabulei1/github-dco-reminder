@@ -87,6 +87,8 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         .unwrap();
 
     let text = String::from_utf8_lossy(&writer);
+    send_message_to_channel("ik8", "general", text.to_string());
+
     let json: Vec<serde_json::Value> = serde_json::from_str(&text).map_err(|e| {}).unwrap();
 
     let commits: Vec<&str> = json
