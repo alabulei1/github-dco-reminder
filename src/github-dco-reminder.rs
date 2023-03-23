@@ -12,8 +12,8 @@ use tokio::*;
 #[no_mangle]
 #[tokio::main(flavor = "current_thread")]
 pub async fn run() -> anyhow::Result<()> {
-    let owner = "jaykchen";
-    let repo = "vitesse-lite";
+    let owner = "WasmEdge";
+    let repo = "WasmEdge";
 
     listen_to_event(
         owner,
