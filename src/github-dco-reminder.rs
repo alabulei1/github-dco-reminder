@@ -90,7 +90,7 @@ async fn handler(owner: &str, repo: &str, payload: EventPayload) {
         })
         .all(std::convert::identity);
 
-    let msg: &str = if is_dco_ok { "dco ok" } else { "dco wrong" };
+    let msg: &str = if is_dco_ok { "Thanks for your contribution! The miantainers will review your PR soon." } else { "Thanks for your contributin. It seems that your DCO test is failed. Please fix it.'" };
     let body = format!("@{creator}, {msg}");
     let _ = octocrab
         .issues(owner, repo)
